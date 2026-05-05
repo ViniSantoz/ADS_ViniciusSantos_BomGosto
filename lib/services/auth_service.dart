@@ -1,65 +1,47 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user_model.dart';
 
+// Classe responsável por toda a lógica de autenticação com Firebase
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Usuário logado no momento (null se não estiver logado)
-  User? get currentUser => _auth.currentUser;
-
-  // Stream que escuta mudanças de autenticação em tempo real
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  // ── LOGIN ─────────────────────────────────────────────────
-  Future<UserCredential> signIn({
-    required String email,
-    required String password,
-  }) async {
-    return await _auth.signInWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
+  // Faz login com email e senha. Retorna null se deu certo, ou mensagem de erro.
+  Future<String?> login(String email, String senha) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: senha);
+      return null; // sucesso
+    } on FirebaseAuthException catch (e) {
+      // Traduz alguns códigos de erro comuns do Firebase
+      if (e.code == 'user-not-found') return 'Usuário não encontrado';
+      if (e.code == 'wrong-password') return 'Senha incorreta';
+      if (e.code == 'invalid-email') return 'E-mail inválido';
+      return 'Erro ao entrar: ${e.message}';
+    }
   }
 
-  // ── CADASTRO ──────────────────────────────────────────────
-  Future<UserModel> register({
-    required String name,
-    required String email,
-    required String phone,
-    required String password,
-  }) async {
-    // 1. Cria o usuário no Firebase Auth
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
-
-    // 2. Atualiza o displayName no Auth
-    await credential.user!.updateDisplayName(name);
-
-    // 3. Salva dados extras no Firestore (telefone, data de cadastro etc.)
-    final user = UserModel(
-      uid: credential.user!.uid,
-      name: name,
-      email: email.trim(),
-      phone: phone,
-      createdAt: DateTime.now(),
-    );
-
-    await _db.collection('users').doc(credential.user!.uid).set(user.toMap());
-
-    return user;
+  // Cria uma nova conta com email e senha
+  Future<String?> cadastrar(String email, String senha) async {
+    try {
+      await _auth.createUserWithEmailAndPassword(email: email, password: senha);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') return 'E-mail já cadastrado';
+      if (e.code == 'weak-password') return 'Senha muito fraca (mínimo 6 caracteres)';
+      if (e.code == 'invalid-email') return 'E-mail inválido';
+      return 'Erro ao cadastrar: ${e.message}';
+    }
   }
 
-  // ── LOGOUT ────────────────────────────────────────────────
-  Future<void> signOut() => _auth.signOut();
-
-  // ── BUSCAR PERFIL DO FIRESTORE ────────────────────────────
-  Future<UserModel?> getUserProfile(String uid) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (!doc.exists) return null;
-    return UserModel.fromMap(doc.data()!);
+  // Envia email de recuperação de senha
+  Future<String?> recuperarSenha(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') return 'E-mail não cadastrado';
+      return 'Erro: ${e.message}';
+    }
   }
+
+  // Faz logout do usuário atual
+  Future<void> logout() async => await _auth.signOut();
 }
