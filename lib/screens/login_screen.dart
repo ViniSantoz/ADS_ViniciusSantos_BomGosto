@@ -1,66 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'cadastro_screen.dart'; // Import da tela de cadastro
+import 'cardapio_screen.dart'; // Certifique-se que o nome do arquivo está correto
+import 'cadastro_screen.dart';
 
 class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _senhaController = TextEditingController();
+  // 1. Definição dos Controllers (Isso resolve o erro de "getter not defined")
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   Future<void> _fazerLogin() async {
     try {
-      UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password);
+      // 2. Uso correto dos controllers (.text)
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
-      // Se chegou aqui, o login deu certo!
-      if (userCredential.user != null) {
-        // Redireciona para a tela de Cardápio
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const CardapioScreen()),
-        );
-      }
+      if (!mounted) return;
+
+      // 3. Navegação correta (Removido o 'const' que causava erro)
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => CardapioScreen()),
+      );
     } on FirebaseAuthException catch (e) {
-      // Tratar erros (senha errada, usuário não existe, etc)
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Erro ao entrar: ${e.message}")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text("BOM GOSTO - Login")),
       body: Padding(
-        padding: EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text("Bom Gosto", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-            SizedBox(height: 40),
             TextField(
               controller: _emailController,
-              decoration: InputDecoration(labelText: "E-mail", border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: "E-mail"),
             ),
-            SizedBox(height: 15),
             TextField(
-              controller: _senhaController,
-              decoration: InputDecoration(labelText: "Senha", border: OutlineInputBorder()),
+              controller: _passwordController,
+              decoration: const InputDecoration(labelText: "Senha"),
               obscureText: true,
             ),
-            SizedBox(height: 25),
-            ElevatedButton(
-              onPressed: _fazerLogin,
-              child: Text("Entrar"),
-              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50)),
-            ),
+            const SizedBox(height: 20),
+            ElevatedButton(onPressed: _fazerLogin, child: const Text("Entrar")),
             TextButton(
               onPressed: () {
-                // Navega para a tela de cadastro
-                Navigator.push(context, MaterialPageRoute(builder: (context) => CadastroScreen()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => CadastroScreen()),
+                );
               },
-              child: Text("Não tem uma conta? Cadastre-se aqui"),
+              child: const Text("Não tem conta? Cadastre-se"),
             ),
           ],
         ),
