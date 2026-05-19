@@ -2,112 +2,185 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class CarrinhoScreen extends StatelessWidget {
+class CarrinhoScreen extends StatefulWidget {
   const CarrinhoScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+  State<CarrinhoScreen> createState() => _CarrinhoScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Meu Carrinho'), centerTitle: true),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              // Busca os itens do carrinho vinculados ao UID do usuário logado
-              stream: FirebaseFirestore.instance
-                  .collection('usuarios')
-                  .doc(user?.uid)
-                  .collection('carrinho')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError)
-                  return const Center(child: Text('Erro ao carregar carrinho'));
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+class _CarrinhoScreenState extends State<CarrinhoScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-                final itens = snapshot.data!.docs;
+  // Atualiza a quantidade do item no Firestore de forma síncrona/reativa
+  Future<void> _atualizarQuantidade(String itemId, int novaQuantidade) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
 
-                if (itens.isEmpty) {
-                  return const Center(child: Text('Seu carrinho está vazio.'));
-                }
+    final docRef = _firestore
+        .collection('usuarios')
+        .doc(uid)
+        .collection('carrinho')
+        .doc(itemId);
 
-                double total = 0;
-                // Cálculo automático do valor total conforme RF02
-                for (var item in itens) {
-                  total += (item['preco'] * item['quantidade']);
-                }
-
-                return Column(
-                  children: [
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: itens.length,
-                        itemBuilder: (context, index) {
-                          final data =
-                              itens[index].data() as Map<String, dynamic>;
-                          return ListTile(
-                            title: Text(data['nome']),
-                            subtitle: Text('Qtd: ${data['quantidade']}'),
-                            trailing: Text(
-                              'R\$ ${(data['preco'] * data['quantidade']).toStringAsFixed(2)}',
-                            ),
-                            // Permite remover itens conforme HU02 [cite: 98]
-                            onLongPress: () => itens[index].reference.delete(),
-                          );
-                        },
-                      ),
-                    ),
-                    _buildResumoTotal(total),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+    if (novaQuantidade <= 0) {
+      // Se a quantidade for a zero ou menor, remove o item (HU02)
+      await docRef.delete();
+    } else {
+      // Caso contrário, atualiza o número no banco de dados
+      await docRef.update({'quantidade': novaQuantidade});
+    }
   }
 
-  Widget _buildResumoTotal(double total) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+  @override
+  Widget build(BuildContext context) {
+    final uid = _auth.currentUser?.uid;
+
+    if (uid == null) {
+      return const Scaffold(
+        body: Center(child: Text('Por favor, faça login para ver seu carrinho.')),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('MEU CARRINHO'),
+        centerTitle: true,
       ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAlignment,
-            children: [
-              const Text(
-                'Total do Pedido:',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _firestore
+            .collection('usuarios')
+            .doc(uid)
+            .collection('carrinho')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text('Erro ao carregar o carrinho.'));
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'Seu carrinho está vazio 🛒',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
-              Text(
-                'R\$ ${total.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: Colors.green,
-                  fontWeight: FontWeight.bold,
+            );
+          }
+
+          // Processamento do cálculo do total geral em tempo real (HU02)
+          double totalGeral = 0.0;
+          for (var doc in docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final double preco = (data['preco'] ?? 0.0).toDouble();
+            final int quantidade = (data['quantidade'] ?? 1).toInt();
+            totalGeral += preco * quantidade;
+          }
+
+          return Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final double preco = (data['preco'] ?? 0.0).toDouble();
+                    final int quantidade = (data['quantidade'] ?? 1).toInt();
+
+                    return ListTile(
+                      title: Text(data['nome'] ?? 'Sem nome'),
+                      subtitle: Text('R\$ ${preco.toStringAsFixed(2)} cada'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Botão de Remover / Decrementar (-)
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                            onPressed: () => _atualizarQuantidade(doc.id, quantidade - 1),
+                          ),
+                          
+                          // Exibição da quantidade atualizada
+                          Text(
+                            '$quantidade',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          
+                          // Botão de Adicionar / Incrementar (+)
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                            onPressed: () => _atualizarQuantidade(doc.id, quantidade + 1),
+                          ),
+                          const SizedBox(width: 8),
+                          
+                          // Valor total do item (Preço * Quantidade)
+                          Text(
+                            'R\$ ${(preco * quantidade).toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Painel de finalização fixado na parte de baixo
+              Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  border: Border(top: BorderSide(color: Colors.grey[300]!)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'TOTAL:',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'R\$ ${totalGeral.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 20, 
+                            fontWeight: FontWeight.bold, 
+                            color: Colors.amber[800]
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber[700],
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                      onPressed: () {
+                        // Alinhado ao cronograma: Avanço para o fechamento do pedido
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Avançando para a finalização...')),
+                        );
+                      },
+                      child: const Text(
+                        'FINALIZAR PEDIDO',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 15),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-            ),
-            onPressed: () {
-              // Próxima etapa: Finalização de Pedidos (19/05)
-            },
-            child: const Text('REVISAR PEDIDO'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

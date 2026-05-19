@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class CadastroScreen extends StatefulWidget {
+  const CadastroScreen({super.key});
+
   @override
   _CadastroScreenState createState() => _CadastroScreenState();
 }
@@ -111,12 +113,12 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
               ElevatedButton(
                 onPressed: _processarCadastro,
-                child: Text("Finalizar Cadastro"),
                 style: ElevatedButton.styleFrom(
                   minimumSize: Size(double.infinity, 50),
                   backgroundColor: Colors.redAccent,
                   foregroundColor: Colors.white,
                 ),
+                child: Text("Finalizar Cadastro"),
               ),
             ],
           ),

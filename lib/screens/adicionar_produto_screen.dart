@@ -74,7 +74,7 @@ class _AdicionarProdutoScreenState extends State<AdicionarProdutoScreen> {
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
-                value: _categoriaSelecionada,
+                initialValue: _categoriaSelecionada,
                 items: _categorias.map((String categoria) {
                   return DropdownMenuItem(
                     value: categoria,
