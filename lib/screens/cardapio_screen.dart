@@ -20,9 +20,14 @@ class _CardapioScreenState extends State<CardapioScreen> {
   final String _emailAdmin = "191508@upf.br"; 
 
   // Função para gerenciar a adição/remoção de itens diretamente no Firestore
-  Future<void> _alterarQuantidadeNoCarrinho(Map<String, dynamic> produto, int mudanca) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
+  Future _alterarQuantidadeNoCarrinho(Map<String, dynamic> produto, int mudanca) async {    
+  final uid = _auth.currentUser?.uid;
+  print("DEBUG CARRINHO: O UID atual é: $uid"); // <--- Adicione este print
+  
+  if (uid == null) {
+    print("DEBUG CARRINHO: Bloqueado! Usuário não está logado.");
+    return;
+  }
 
     // Referência para o documento do produto dentro do carrinho do usuário atual
     final docRef = _firestore
