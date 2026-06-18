@@ -112,8 +112,8 @@ class _CardapioScreenState extends State<CardapioScreen> {
                 },
               ),
             IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: 'Adicionar Produto',
+              icon: const Icon(Icons.history),
+              tooltip: 'Historico de Pedidos',
               onPressed: () {
                 Navigator.push(
                   context,
