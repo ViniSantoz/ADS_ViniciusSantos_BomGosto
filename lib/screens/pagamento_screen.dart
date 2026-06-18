@@ -1,155 +1,126 @@
 import 'package:flutter/material.dart';
-import 'pix_screen.dart'; // Importa a nova tela do Pix
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'cardapio_screen.dart';
+import 'pix_screen.dart'; // Garanta que o import do Pix existe
 
-class PagamentoScreen extends StatelessWidget {
+class PagamentoScreen extends StatefulWidget {
   final double valorTotal;
-  final String formaPagamento;
+  final String idDoPedido;
 
-  // O construtor exige os dados vindos do carrinho
   const PagamentoScreen({
-    Key? key,
+    super.key,
     required this.valorTotal,
-    required this.formaPagamento,
-  }) : super(key: key);
+    required this.idDoPedido,
+  });
+
+  @override
+  State<PagamentoScreen> createState() => _PagamentoScreenState();
+}
+
+class _PagamentoScreenState extends State<PagamentoScreen> {
+  // Define o método inicial padrão (ajuste conforme seu código)
+  String formaPagamento = "PIX";
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text("Finalizar Pedido", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.red[800],
+        title: const Text('Finalizar Pagamento'),
+        centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Resumo do que está sendo processado
-            Card(
-              elevation: 3,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Valor a Pagar:", style: TextStyle(fontSize: 16)),
-                    Text(
-                      "R\$ ${valorTotal.toStringAsFixed(2)}",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green[700]),
-                    ),
-                  ],
-                ),
-              ),
+            Text(
+              "Valor a pagar: R\$ ${widget.valorTotal.toStringAsFixed(2)}",
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 24),
-
+            const SizedBox(height: 16),
             Text(
               "Método Selecionado: $formaPagamento",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 32),
 
-            // Interface condicional baseada na escolha do cliente
-            Expanded(
-              child: formaPagamento == "PIX"
-                  ? _buildInterfacePix()
-                  : _buildInterfaceCartao(),
-            ),
-            
-            // Botão de confirmação final que disparará a API
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[600],
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            // Botão Avançar / Já Paguei integrado com o fluxo de testes
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
                 ),
-                onPressed: () {
-                  if (formaPagamento == "PIX") {
-                    // Redireciona para a nova tela do Pix passando o valor total
-                    Navigator.push(
+              ),
+              child: const Text(
+                'Já Paguei (Simular Asaas)',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () async {
+                if (uid == null) return;
+
+                if (formaPagamento == "PIX") {
+                  // Redireciona para a tela do PIX injetando os dados obrigatórios
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PixScreen(
+                        idDoPedido: widget.idDoPedido,
+                        valorTotal: widget.valorTotal,
+                      ),
+                    ),
+                  );
+                } else {
+                  // Se for outra forma de pagamento (ex: cartão), roda o lote de encerramento
+                  final firestore = FirebaseFirestore.instance;
+                  try {
+                    await firestore
+                        .collection('pedidos')
+                        .doc(widget.idDoPedido)
+                        .update({
+                          'status': 'Aprovado',
+                          'pagoEm': FieldValue.serverTimestamp(),
+                        });
+
+                    final carrinhoRef = firestore
+                        .collection('usuarios')
+                        .doc(uid)
+                        .collection('carrinho');
+                    final snapshot = await carrinhoRef.get();
+                    WriteBatch batch = firestore.batch();
+                    for (var doc in snapshot.docs) {
+                      batch.delete(doc.reference);
+                    }
+                    await batch.commit();
+
+                    Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => PixScreen(valorTotal: valorTotal),
+                        builder: (context) => const CardapioScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Erro: $e'),
+                        backgroundColor: Colors.red,
                       ),
                     );
-                child: Text(
-                  "Confirmar e Pagar",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
+                  }
+                }
+              },
             ),
           ],
         ),
       ),
-    );
-  }
-
-  // Widget visual para quando for PIX
-  Widget _buildInterfacePix() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.pix, size: 80, color: Colors.teal),
-          SizedBox(height: 16),
-          Text(
-            "O QR Code e a chave Copia e Cola serão gerados assim que você clicar em confirmar.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[600]), // <-- Agora o style está no lugar certo, dentro do Text!
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Widget visual para quando for Cartão
-  Widget _buildInterfaceCartao() {
-    return ListView(
-      children: [
-        TextFormField(
-          decoration: InputDecoration(
-            labelText: "Número do Cartão",
-            prefixIcon: Icon(Icons.credit_card),
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.number,
-        ),
-        SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                decoration: InputDecoration(
-                  labelText: "Validade (MM/AA)",
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.datetime,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: TextFormField(
-                decoration: InputDecoration(
-                  labelText: "CVV",
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                obscureText: true,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 12),
-        TextFormField(
-          decoration: InputDecoration(
-            labelText: "Nome do Titular (como no cartão)",
-            border: OutlineInputBorder(),
-          ),
-        ),
-      ],
     );
   }
 }
-$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmJiMWJhMTlmLTAxM2YtNDY3Mi1hMmYyLTBhYTgyMDYwODY1ZDo6JGFhY2hfYWI1YWI0N2QtZDRjMS00ODUwLThhYTUtZmRjZTE1MmVjYzc1

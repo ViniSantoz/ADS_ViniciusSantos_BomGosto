@@ -1,23 +1,32 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'cardapio_screen.dart';
 
 class PixScreen extends StatefulWidget {
-  final double valorTotal;
+  final String idDoPedido;
+  final double valorTotal; // Adicione esta linha para receber o valor
 
-  const PixScreen({Key? key, required this.valorTotal}) : super(key: key);
+  // Atualize o construtor para exigir os dois parâmetros
+  const PixScreen({
+    super.key,
+    required this.idDoPedido,
+    required this.valorTotal,
+  });
 
   @override
-  _PixScreenState createState() => _PixScreenState();
+  State<PixScreen> createState() => _PixScreenState();
 }
 
 class _PixScreenState extends State<PixScreen> {
   bool _carregando = true;
   String? _erro;
-  
+
   // Variáveis que vão receber os dados vindos da API do Asaas
   String? _payloadPixCopiaECola;
-  String? _qrCodeBase64; 
+  String? _qrCodeBase64;
 
   @override
   void initState() {
@@ -38,19 +47,20 @@ class _PixScreenState extends State<PixScreen> {
       // Quando sua API estiver pronta, você substituirá esse Future.delayed por:
       // final response = await http.post(Uri.parse('SUA_URL/gerar-pix'), body: {...});
       // =========================================================================
-      await Future.delayed(Duration(seconds: 2)); 
+      await Future.delayed(Duration(seconds: 2));
 
       // Dados de exemplo idênticos ao formato que o Asaas retorna no endpoint:
       // /v3/payments/{id}/pixQrCode
-      String fakeQrCodeBase64 = "iVBORw0KGgoAAAANSUhEUgAAAMgAAADIEAMAAAHYsnNaAAAAG1BMVEUAAAD///89PT07OzsBAQEqKioVFRUiIiIXFxd66U7CAAAACXBIWXMAAA7EAAAOxAGVKw4bAAABMElEQVR4nO3NMQ7CMBAEQDGe8v9/Y8p0WhA6g6gK96YbitXm6vO+78fPZ98XmAtZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFmIufwB7msZ7m9mXm0AAAAASUVORK5CYII=";
-      String fakeCopiaECola = "00020101021226870014br.gov.bcb.pix2565asaas.com/qr/v2/cobv/v/fake-id-bom-gosto-payment-2026";
+      String fakeQrCodeBase64 =
+          "iVBORw0KGgoAAAANSUhEUgAAAMgAAADIEAMAAAHYsnNaAAAAG1BMVEUAAAD///89PT07OzsBAQEqKioVFRUiIiIXFxd66U7CAAAACXBIWXMAAA7EAAAOxAGVKw4bAAABMElEQVR4nO3NMQ7CMBAEQDGe8v9/Y8p0WhA6g6gK96YbitXm6vO+78fPZ98XmAtZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFkIWQhZCFmIufwB7msZ7m9mXm0AAAAASUVORK5CYII=";
+      String fakeCopiaECola =
+          "00020101021226870014br.gov.bcb.pix2565asaas.com/qr/v2/cobv/v/fake-id-bom-gosto-payment-2026";
 
       setState(() {
         _qrCodeBase64 = fakeQrCodeBase64;
         _payloadPixCopiaECola = fakeCopiaECola;
         _carregando = false;
       });
-
     } catch (e) {
       setState(() {
         _erro = "Não foi possível gerar o PIX. Tente novamente.";
@@ -77,9 +87,14 @@ class _PixScreenState extends State<PixScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.red[800]!)),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.red[800]!),
+            ),
             SizedBox(height: 16),
-            Text("Gerando QR Code no Asaas...", style: TextStyle(fontSize: 16, color: Colors.grey[700])),
+            Text(
+              "Gerando QR Code no Asaas...",
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+            ),
           ],
         ),
       );
@@ -94,17 +109,105 @@ class _PixScreenState extends State<PixScreen> {
             children: [
               Icon(Icons.error_outline, size: 60, color: Colors.red),
               SizedBox(height: 16),
-              Text(_erro!, textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+              Text(
+                _erro!,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16),
+              ),
               SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _gerarPixNoAsaas,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red[800]),
-                child: Text("Tentar Novamente", style: TextStyle(color: Colors.white)),
-              )
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[800],
+                ),
+                child: Text(
+                  "Tentar Novamente",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
             ],
           ),
         ),
       );
+    }
+    Future<void> _finalizarPedidoNoBanco() async {
+      final firestore = FirebaseFirestore.instance;
+      final auth = FirebaseAuth.instance;
+      final uid = auth.currentUser?.uid;
+
+      if (uid == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro: Usuário não autenticado.")),
+        );
+        return;
+      }
+
+      try {
+        // 1. Buscar os itens que estão atualmente no carrinho do usuário
+        final carrinhoSnapshot = await firestore
+            .collection('usuarios')
+            .doc(uid)
+            .collection('carrinho')
+            .get();
+
+        if (carrinhoSnapshot.docs.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Seu carrinho já está vazio!")),
+          );
+          return;
+        }
+
+        // Mapeia os documentos do carrinho para uma lista de Maps estruturada
+        List<Map<String, dynamic>> itensPedido = [];
+        for (var doc in carrinhoSnapshot.docs) {
+          final dados = doc.data();
+          itensPedido.add({
+            'idProduto': doc.id,
+            'nome': dados['nome'],
+            'preco': dados['preco'],
+            'quantidade': dados['quantidade'],
+          });
+        }
+
+        // 2. Criar o documento do pedido na coleção GLOBAL 'pedidos'
+        // O dono do restaurante vai ler esta coleção para ver os pedidos novos e antigos
+        DocumentReference
+        novoPedidoRef = await firestore.collection('pedidos').add({
+          'idUsuario': uid,
+          'itens': itensPedido,
+          'valorTotal': widget.valorTotal,
+          'formaPagamento': 'PIX',
+          'status':
+              'Pendente', // Pode ser: Pendente, Em Preparo, Pronto, Entregue
+          'dataCriacao':
+              FieldValue.serverTimestamp(), // Guarda a data/hora exata do servidor
+        });
+
+        // 3. Limpar o carrinho do usuário (Deleta os itens para liberar o app)
+        WriteBatch batch = firestore.batch();
+        for (var doc in carrinhoSnapshot.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+
+        // 4. Sucesso! Avisa o usuário e volta para a tela inicial do cardápio
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Pedido enviado para a cozinha com sucesso!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Remove as telas de checkout do histórico e volta para a tela principal (Cardápio)
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } catch (e) {
+        print("ERRO AO SALVAR PEDIDO: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro ao processar o pedido. Tente novamente."),
+          ),
+        );
+      }
     }
 
     // --- INTERFACE DO PIX GERADO COM SUCESSO ---
@@ -115,12 +218,20 @@ class _PixScreenState extends State<PixScreen> {
         children: [
           Text(
             "Bom Gosto Gastronomia",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red[800]),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.red[800],
+            ),
           ),
           SizedBox(height: 8),
           Text(
             "Valor a pagar: R\$ ${widget.valorTotal.toStringAsFixed(2)}",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.green[700]),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.green[700],
+            ),
           ),
           Divider(height: 40, thickness: 1),
 
@@ -143,7 +254,7 @@ class _PixScreenState extends State<PixScreen> {
               base64Decode(_qrCodeBase64!),
               width: 200,
               height: 200,
-              fit: .BoxFit.contain,
+              fit: BoxFit.contain,
             ),
           ),
           SizedBox(height: 24),
@@ -166,7 +277,11 @@ class _PixScreenState extends State<PixScreen> {
               _payloadPixCopiaECola!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: 'monospace', fontSize: 13, color: Colors.grey[700]),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 13,
+                color: Colors.grey[700],
+              ),
             ),
           ),
           SizedBox(height: 12),
@@ -178,7 +293,9 @@ class _PixScreenState extends State<PixScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal[700],
                 padding: EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: _payloadPixCopiaECola!));
@@ -188,7 +305,9 @@ class _PixScreenState extends State<PixScreen> {
                       children: [
                         Icon(Icons.check_circle, color: Colors.white),
                         SizedBox(width: 8),
-                        Text("Código PIX copiado para a área de transferência!"),
+                        Text(
+                          "Código PIX copiado para a área de transferência!",
+                        ),
                       ],
                     ),
                     backgroundColor: Colors.green[700],
@@ -196,18 +315,109 @@ class _PixScreenState extends State<PixScreen> {
                 );
               },
               icon: Icon(Icons.copy, color: Colors.white),
-              label: Text("Copiar Código PIX", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              label: Text(
+                "Copiar Código PIX",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
           SizedBox(height: 40),
-          
+
           Text(
             "Após realizar o pagamento, nosso sistema identificará o recebimento de forma automática.",
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: Colors.grey[500], italic: true),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[500],
+              fontStyle: FontStyle.italic,
+            ),
           ),
-        ],
-      ),
+          // ... Código anterior do SingleChildScrollView (abaixo do último Text)
+          SizedBox(height: 30),
+
+          // --- NOVO BOTÃO PARA SALVAR O PEDIDO NO BANCO ---
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+            ),
+            child: const Text(
+              'Já Paguei (Simular Asaas)',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            onPressed: () async {
+              final uid = FirebaseAuth.instance.currentUser?.uid;
+              if (uid == null) return;
+
+              final firestore = FirebaseFirestore.instance;
+
+              try {
+                // 1. SALVA OU ATUALIZA O PEDIDO (Usando .set com merge em vez de .update)
+                await firestore
+                    .collection('pedidos')
+                    .doc(widget.idDoPedido)
+                    .set(
+                      {
+                        'status': 'Aprovado',
+                        'pagoEm': FieldValue.serverTimestamp(),
+                        'usuarioId': uid,
+                        'valorTotal': widget.valorTotal,
+                      },
+                      SetOptions(merge: true),
+                    ); // <-- Isso impede o erro de documento inexistente!
+
+                // 2. LIMPA O CARRINHO DO USUÁRIO
+                final carrinhoRef = firestore
+                    .collection('usuarios')
+                    .doc(uid)
+                    .collection('carrinho');
+                final snapshot = await carrinhoRef.get();
+
+                WriteBatch batch = firestore.batch();
+                for (var doc in snapshot.docs) {
+                  batch.delete(doc.reference);
+                }
+                await batch.commit();
+
+                // Feedback visual para você saber que deu certo
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Sucesso! Pedido criado/aprovado e carrinho limpo.',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+
+                // 3. FECHA O CICLO (Volta para o Cardápio limpando a árvore de telas)
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CardapioScreen(),
+                  ),
+                  (route) => false,
+                );
+              } catch (e) {
+                print(
+                  "ERRO NO TESTE: $e",
+                ); // Isso vai cuspir o erro real no terminal do VS Code
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erro ao fechar pedido: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+          ),
+        ], // Fim do Column
+      ), // Fim do SingleChildScrollView
     );
   }
 }

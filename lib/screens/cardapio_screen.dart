@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'adicionar_produto_screen.dart';
 import 'carrinho_screen.dart';
 import 'perfil_screen.dart';
+import 'admin_pedidos_screen.dart';
 
 class CardapioScreen extends StatefulWidget {
   const CardapioScreen({super.key});
@@ -15,19 +16,22 @@ class CardapioScreen extends StatefulWidget {
 class _CardapioScreenState extends State<CardapioScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  
+
   // E-mail administrativo para controle de acesso (RF03)
-  final String _emailAdmin = "191508@upf.br"; 
+  final String _emailAdmin = "admin@bomgosto.com";
 
   // Função para gerenciar a adição/remoção de itens diretamente no Firestore
-  Future _alterarQuantidadeNoCarrinho(Map<String, dynamic> produto, int mudanca) async {    
-  final uid = _auth.currentUser?.uid;
-  print("DEBUG CARRINHO: O UID atual é: $uid"); // <--- Adicione este print
-  
-  if (uid == null) {
-    print("DEBUG CARRINHO: Bloqueado! Usuário não está logado.");
-    return;
-  }
+  Future _alterarQuantidadeNoCarrinho(
+    Map<String, dynamic> produto,
+    int mudanca,
+  ) async {
+    final uid = _auth.currentUser?.uid;
+    print("DEBUG CARRINHO: O UID atual é: $uid"); // <--- Adicione este print
+
+    if (uid == null) {
+      print("DEBUG CARRINHO: Bloqueado! Usuário não está logado.");
+      return;
+    }
 
     // Referência para o documento do produto dentro do carrinho do usuário atual
     final docRef = _firestore
@@ -101,10 +105,24 @@ class _CardapioScreenState extends State<CardapioScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const AdicionarProdutoScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const AdicionarProdutoScreen(),
+                    ),
                   );
                 },
               ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Adicionar Produto',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminPedidosScreen(),
+                  ),
+                );
+              },
+            ),
           ],
           bottom: const TabBar(
             tabs: [
@@ -115,7 +133,9 @@ class _CardapioScreenState extends State<CardapioScreen> {
           ),
         ),
         body: uid == null
-            ? const Center(child: Text('Por favor, faça login para ver o cardápio.'))
+            ? const Center(
+                child: Text('Por favor, faça login para ver o cardápio.'),
+              )
             : TabBarView(
                 children: [
                   _buildListaCardapio('Lanches', uid),
@@ -136,22 +156,29 @@ class _CardapioScreenState extends State<CardapioScreen> {
           .where('disponivel', isEqualTo: true)
           .snapshots(),
       builder: (context, produtosSnapshot) {
-        if (produtosSnapshot.hasError) return const Center(child: Text('Erro ao carregar cardápio.'));
+        if (produtosSnapshot.hasError)
+          return const Center(child: Text('Erro ao carregar cardápio.'));
         if (produtosSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         final produtosDocs = produtosSnapshot.data?.docs ?? [];
-        if (produtosDocs.isEmpty) return const Center(child: Text('Nenhum item disponível.'));
+        if (produtosDocs.isEmpty)
+          return const Center(child: Text('Nenhum item disponível.'));
 
         return StreamBuilder<QuerySnapshot>(
-          stream: _firestore.collection('usuarios').doc(uid).collection('carrinho').snapshots(),
+          stream: _firestore
+              .collection('usuarios')
+              .doc(uid)
+              .collection('carrinho')
+              .snapshots(),
           builder: (context, carrinhoSnapshot) {
             // Mapeia os IDs dos produtos do carrinho com suas respectivas quantidades atuais
             Map<String, int> quantidadesNoCarrinho = {};
             if (carrinhoSnapshot.hasData) {
               for (var doc in carrinhoSnapshot.data!.docs) {
-                quantidadesNoCarrinho[doc.id] = (doc.get('quantidade') ?? 0).toInt();
+                quantidadesNoCarrinho[doc.id] = (doc.get('quantidade') ?? 0)
+                    .toInt();
               }
             }
 
@@ -160,14 +187,14 @@ class _CardapioScreenState extends State<CardapioScreen> {
               itemBuilder: (context, index) {
                 final doc = produtosDocs[index];
                 final data = doc.data() as Map<String, dynamic>;
-                
+
                 // Consolida os dados essenciais para transporte
                 final Map<String, dynamic> produto = {
                   'id': doc.id,
                   'nome': data['nome'] ?? 'Sem nome',
                   'preco': (data['preco'] ?? 0.0).toDouble(),
                 };
-                
+
                 final int qtdAtual = quantidadesNoCarrinho[produto['id']] ?? 0;
 
                 return ListTile(
@@ -181,21 +208,29 @@ class _CardapioScreenState extends State<CardapioScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(width: 12),
-                      
+
                       // Estrutura de Botões Inline para Controle Direto do Catálogo
                       if (qtdAtual > 0) ...[
                         IconButton(
-                          icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                          onPressed: () => _alterarQuantidadeNoCarrinho(produto, -1),
+                          icon: const Icon(
+                            Icons.remove_circle_outline,
+                            color: Colors.red,
+                          ),
+                          onPressed: () =>
+                              _alterarQuantidadeNoCarrinho(produto, -1),
                         ),
                         Text(
                           '$qtdAtual',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                       IconButton(
                         icon: const Icon(Icons.add_circle, color: Colors.green),
-                        onPressed: () => _alterarQuantidadeNoCarrinho(produto, 1),
+                        onPressed: () =>
+                            _alterarQuantidadeNoCarrinho(produto, 1),
                       ),
                     ],
                   ),
