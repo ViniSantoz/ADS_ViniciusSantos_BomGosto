@@ -11,11 +11,15 @@ class CarrinhoScreen extends StatefulWidget {
 }
 
 class _CarrinhoScreenState extends State<CarrinhoScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Função auxiliar para atualizar a quantidade do item no Firestore
-  Future<void> _alterarQuantidade(String docId, int novaQuantidade) async {
+  // Função para alterar a quantidade ou remover o item diretamente do Firestore
+  Future<void> _alterarQuantidade(
+    String produtoId,
+    int mudanca,
+    int qtdAtual,
+  ) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
@@ -23,253 +27,272 @@ class _CarrinhoScreenState extends State<CarrinhoScreen> {
         .collection('usuarios')
         .doc(uid)
         .collection('carrinho')
-        .doc(docId);
+        .doc(produtoId);
 
-    if (novaQuantidade <= 0) {
-      // Se a quantidade chegar a 0, removemos o item do carrinho
+    if (qtdAtual + mudanca <= 0) {
       await docRef.delete();
     } else {
-      await docRef.update({'quantidade': novaQuantidade});
+      await docRef.update({'quantidade': qtdAtual + mudanca});
     }
-  }
-
-  // Função auxiliar para remover o item diretamente
-  Future<void> _removerItem(String docId) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-
-    await _firestore
-        .collection('usuarios')
-        .doc(uid)
-        .collection('carrinho')
-        .doc(docId)
-        .delete();
   }
 
   @override
   Widget build(BuildContext context) {
     final uid = _auth.currentUser?.uid;
 
-    // Se o usuário não estiver logado, impede o carregamento
-    if (uid == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text(
-            'Usuário não autenticado. Faça login para ver seu carrinho.',
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(title: const Text('Meu Carrinho'), centerTitle: true),
-      body: StreamBuilder<QuerySnapshot>(
-        // Ouve em tempo real as atualizações da subcoleção de carrinho do usuário logado
-        stream: _firestore
-            .collection('usuarios')
-            .doc(uid)
-            .collection('carrinho')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: uid == null
+          ? const Center(
+              child: Text('Por favor, faça login para ver seu carrinho.'),
+            )
+          : StreamBuilder<QuerySnapshot>(
+              stream: _firestore
+                  .collection('usuarios')
+                  .doc(uid)
+                  .collection('carrinho')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(
+                    child: Text('Erro ao carregar o carrinho.'),
+                  );
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.shopping_cart_outlined,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Seu carrinho está vazio!',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                ],
-              ),
-            );
-          }
+                final itens = snapshot.data?.docs ?? [];
 
-          final itens = snapshot.data!.docs;
-          double totalDoCarrinho = 0.0;
+                if (itens.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.shopping_basket_outlined,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Seu carrinho está vazio!',
+                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-          // Calcula o valor total multiplicando preço e quantidade de cada documento
-          for (var doc in itens) {
-            final dados = doc.data() as Map<String, dynamic>;
-            double preco = (dados['preco'] ?? 0.0).toDouble();
-            int quantidade = (dados['quantidade'] ?? 1).toInt();
-            totalDoCarrinho += (preco * quantidade);
-          }
+                double totalDoCarrinho = 0.0;
 
-          return Column(
-            children: [
-              // Lista de Itens do Carrinho
-              Expanded(
-                child: ListView.builder(
-                  itemCount: itens.length,
-                  itemBuilder: (context, index) {
-                    final doc = itens[index];
-                    final dados = doc.data() as Map<String, dynamic>;
+                return Column(
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: itens.length,
+                        itemBuilder: (context, index) {
+                          final doc = itens[index];
+                          final data =
+                              doc.data() as Map<String, dynamic>? ?? {};
 
-                    String nome = dados['nome'] ?? 'Item sem nome';
-                    double preco = (dados['preco'] ?? 0.0).toDouble();
-                    int quantidade = (dados['quantidade'] ?? 1).toInt();
-                    String imagemUrl = dados['imagemUrl'] ?? '';
+                          final String id = doc.id;
+                          final String nome = data['nome'] ?? 'Sem nome';
+                          final double preco = data['preco'] != null
+                              ? (data['preco'] as num).toDouble()
+                              : 0.0;
+                          final int quantidade = data['quantidade'] != null
+                              ? (data['quantidade'] as num).toInt()
+                              : 1;
+                          final String imagemUrl = data['imagemUrl'] ?? '';
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                          return Card(
+                            key: ValueKey(
+                              id,
+                            ), // 💡 ESSENCIAL: Diz ao Flutter exatamente qual item é qual, evitando bugs de MouseTracker!
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8.0,
+                              ),
+                              child: ListTile(
+                                // Modificação do leading para estabilidade máxima de tamanho:
+                                leading: SizedBox(
+                                  width: 55,
+                                  height: 55,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: imagemUrl.isEmpty
+                                        ? Container(
+                                            color: Colors.grey[200],
+                                            child: const Icon(
+                                              Icons.fastfood,
+                                              color: Colors.grey,
+                                            ),
+                                          )
+                                        : Image.network(
+                                            imagemUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                                  return Container(
+                                                    color: Colors.grey[200],
+                                                    child: const Icon(
+                                                      Icons.broken_image,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  );
+                                                },
+                                          ),
+                                  ),
+                                ),
+                                title: Text(
+                                  nome,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Valor un: R\$ ${preco.toStringAsFixed(2)}',
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
+                                    Text(
+                                      'Subtotal: R\$ ${(preco * quantidade).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () => _alterarQuantidade(
+                                        id,
+                                        -1,
+                                        quantidade,
+                                      ),
+                                    ),
+                                    Text(
+                                      '$quantidade',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                        color: Colors.green,
+                                      ),
+                                      onPressed: () =>
+                                          _alterarQuantidade(id, 1, quantidade),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                      elevation: 2,
-                      child: ListTile(
-                        leading: imagemUrl.isNotEmpty
-                            ? Image.network(
-                                imagemUrl,
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.fastfood, size: 40),
-                              )
-                            : const Icon(Icons.fastfood, size: 40),
-                        title: Text(
-                          nome,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          "R\$ ${preco.toStringAsFixed(2)} x $quantidade",
-                        ),
-                        trailing: Row(
+                    ),
+
+                    // Rodapé com o valor TOTAL e botão de Avançar
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(0, -3),
+                          ),
+                        ],
+                      ),
+                      child: SafeArea(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Botão de diminuir quantidade
-                            IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle_outline,
-                                color: Colors.orange,
-                              ),
-                              onPressed: () =>
-                                  _alterarQuantidade(doc.id, quantidade - 1),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'TOTAL:',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'R\$ ${totalDoCarrinho.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '$quantidade',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () {
+                                // Gera um ID temporário/prévio para o documento do pedido
+                                final String novoIdPedido = _firestore
+                                    .collection('pedidos')
+                                    .doc()
+                                    .id;
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PagamentoScreen(
+                                      idDoPedido: novoIdPedido,
+                                      valorTotal: totalDoCarrinho,
+                                      // Padrão inicial de escolha
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                minimumSize: const Size.fromHeight(50),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                            ),
-                            // Botão de aumentar quantidade
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add_circle_outline,
-                                color: Colors.green,
+                              child: const Text(
+                                'AVANÇAR PARA O PAGAMENTO',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              onPressed: () =>
-                                  _alterarQuantidade(doc.id, quantidade + 1),
-                            ),
-                            // Botão de remover item completo
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _removerItem(doc.id),
                             ),
                           ],
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-
-              // Rodapé com o Resumo Financeiro e Ação de Avançar
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      offset: const Offset(0, -4),
-                      blurRadius: 10,
                     ),
                   ],
-                ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Total:',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'R\$ ${totalDoCarrinho.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: () {
-                            // Cria antecipadamente uma referência limpa com ID aleatório no Firestore
-                            String novoIdPedido = _firestore
-                                .collection('pedidos')
-                                .doc()
-                                .id;
-
-                            // Avança para a tela de pagamento passando as variáveis necessárias
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => PagamentoScreen(
-                                  valorTotal: totalDoCarrinho,
-                                  idDoPedido: novoIdPedido,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'AVANÇAR PARA O PAGAMENTO',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+                );
+              },
+            ),
     );
   }
 }
