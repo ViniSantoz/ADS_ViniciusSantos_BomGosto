@@ -27,12 +27,7 @@ class _CardapioScreenState extends State<CardapioScreen> {
     int mudanca,
   ) async {
     final uid = _auth.currentUser?.uid;
-    print("DEBUG CARRINHO: O UID atual é: $uid"); // <--- Adicione este print
-
-    if (uid == null) {
-      print("DEBUG CARRINHO: Bloqueado! Usuário não está logado.");
-      return;
-    }
+    if (uid == null) return;
 
     // Referência para o documento do produto dentro do carrinho do usuário atual
     final docRef = _firestore
@@ -58,6 +53,8 @@ class _CardapioScreenState extends State<CardapioScreen> {
         'id': produto['id'],
         'nome': produto['nome'],
         'preco': produto['preco'],
+        'imagemUrl':
+            produto['imagemUrl'], // ATUALIZAÇÃO: Envia o link para a subcoleção do carrinho!
         'quantidade': 1,
         'adicionadoEm': FieldValue.serverTimestamp(),
       });
@@ -169,15 +166,17 @@ class _CardapioScreenState extends State<CardapioScreen> {
           .where('disponivel', isEqualTo: true)
           .snapshots(),
       builder: (context, produtosSnapshot) {
-        if (produtosSnapshot.hasError)
+        if (produtosSnapshot.hasError) {
           return const Center(child: Text('Erro ao carregar cardápio.'));
+        }
         if (produtosSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         final produtosDocs = produtosSnapshot.data?.docs ?? [];
-        if (produtosDocs.isEmpty)
+        if (produtosDocs.isEmpty) {
           return const Center(child: Text('Nenhum item disponível.'));
+        }
 
         return StreamBuilder<QuerySnapshot>(
           stream: _firestore
@@ -201,51 +200,109 @@ class _CardapioScreenState extends State<CardapioScreen> {
                 final doc = produtosDocs[index];
                 final data = doc.data() as Map<String, dynamic>;
 
-                // Consolida os dados essenciais para transporte
+                final String id = doc.id;
+                final String nome = data['nome'] ?? 'Sem nome';
+                final String descricao = data['descricao'] ?? '';
+                final double preco = (data['preco'] ?? 0.0).toDouble();
+                final String imagemUrl = data['imagemUrl'] ?? '';
+
                 final Map<String, dynamic> produto = {
-                  'id': doc.id,
-                  'nome': data['nome'] ?? 'Sem nome',
-                  'preco': (data['preco'] ?? 0.0).toDouble(),
+                  'id': id,
+                  'nome': nome,
+                  'preco': preco,
+                  'imagemUrl': imagemUrl,
                 };
 
-                final int qtdAtual = quantidadesNoCarrinho[produto['id']] ?? 0;
+                final int qtdAtual = quantidadesNoCarrinho[id] ?? 0;
 
-                return ListTile(
-                  title: Text(produto['nome']),
-                  subtitle: Text(data['descricao'] ?? ''),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'R\$ ${produto['preco'].toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                return Container(
+                  key: ValueKey(
+                    id,
+                  ), // 1. Garante que o Flutter fixe o widget e ignore loops de hover
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey[200]!),
+                    ),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 4,
+                    ),
+                    // 2. Tamanho rústico e fixado para a imagem não flutuar o layout
+                    leading: SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: imagemUrl.isNotEmpty
+                            ? Image.network(
+                                imagemUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  // Fallback seguro se o link do Firebase/Imgur quebrar
+                                  return Image.network(
+                                    'https://placehold.co/600x600/png?text=Bom+Gosto',
+                                  );
+                                },
+                              )
+                            : Image.network(
+                                'https://placehold.co/600x600/png?text=Bom+Gosto',
+                              ),
                       ),
-                      const SizedBox(width: 12),
-
-                      // Estrutura de Botões Inline para Controle Direto do Catálogo
-                      if (qtdAtual > 0) ...[
+                    ),
+                    title: Text(
+                      nome,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      descricao,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'R${preco.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(width: 8),
+                        if (qtdAtual > 0) ...[
+                          IconButton(
+                            icon: const Icon(
+                              Icons.remove_circle_outline,
+                              color: Colors.red,
+                            ),
+                            onPressed: () =>
+                                _alterarQuantidadeNoCarrinho(produto, -1),
+                          ),
+                          Text(
+                            '$qtdAtual',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                         IconButton(
                           icon: const Icon(
-                            Icons.remove_circle_outline,
-                            color: Colors.red,
+                            Icons.add_circle,
+                            color: Colors.green,
                           ),
                           onPressed: () =>
-                              _alterarQuantidadeNoCarrinho(produto, -1),
-                        ),
-                        Text(
-                          '$qtdAtual',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                              _alterarQuantidadeNoCarrinho(produto, 1),
                         ),
                       ],
-                      IconButton(
-                        icon: const Icon(Icons.add_circle, color: Colors.green),
-                        onPressed: () =>
-                            _alterarQuantidadeNoCarrinho(produto, 1),
-                      ),
-                    ],
+                    ),
                   ),
                 );
               },

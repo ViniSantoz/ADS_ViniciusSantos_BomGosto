@@ -130,7 +130,7 @@ class _PixScreenState extends State<PixScreen> {
         ),
       );
     }
-    Future<void> _finalizarPedidoNoBanco() async {
+    Future<void> finalizarPedidoNoBanco() async {
       final firestore = FirebaseFirestore.instance;
       final auth = FirebaseAuth.instance;
       final uid = auth.currentUser?.uid;

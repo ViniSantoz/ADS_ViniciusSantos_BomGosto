@@ -158,7 +158,7 @@ class _AdicionarProdutoScreenState extends State<AdicionarProdutoScreen> {
 
                       // Dropdown: Seleção de Categoria
                       DropdownButtonFormField<String>(
-                        value: _categoriaSelecionada,
+                        initialValue: _categoriaSelecionada,
                         decoration: const InputDecoration(
                           labelText: 'Categoria',
                           border: OutlineInputBorder(),
