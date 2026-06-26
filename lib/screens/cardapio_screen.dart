@@ -5,6 +5,7 @@ import 'adicionar_produto_screen.dart';
 import 'carrinho_screen.dart';
 import 'perfil_screen.dart';
 import 'admin_pedidos_screen.dart';
+import 'lista_pedidos_admin_screen.dart';
 
 class CardapioScreen extends StatefulWidget {
   const CardapioScreen({super.key});
@@ -119,6 +120,18 @@ class _CardapioScreenState extends State<CardapioScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminPedidosScreen(),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.analytics, color: Colors.redAccent),
+              tooltip: 'Gerenciar Pedidos',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ListaPedidosAdminScreen(),
                   ),
                 );
               },
