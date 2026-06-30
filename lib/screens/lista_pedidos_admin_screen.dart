@@ -44,6 +44,7 @@ class ListaPedidosAdminScreen extends StatelessWidget {
 
               // Define uma cor baseada no status para o admin bater o olho rápido
               Color corStatus = Colors.orange;
+              if (status == 'Aprovado') corStatus = Colors.green; // Verde para pagamento aprovado!
               if (status == 'Em Preparo') corStatus = Colors.blue;
               if (status == 'Saiu para Entrega') corStatus = Colors.purple;
 

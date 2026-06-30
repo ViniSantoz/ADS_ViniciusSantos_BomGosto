@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'login_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -105,11 +106,34 @@ class _PerfilScreenState extends State<PerfilScreen> {
         title: const Text('MEU PERFIL'),
         centerTitle: true,
         actions: [
-          IconButton(
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red, // Cor vermelha do botão
+              foregroundColor: Colors.white, // Cor do texto e ícone
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             icon: const Icon(Icons.logout),
-            tooltip: 'Sair da Conta',
-            onPressed: _fazerLogout,
-          ),
+            label: const Text(
+              'Sair da Conta',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            onPressed: () async {
+              // 1. Desloga o usuário do Firebase
+              await FirebaseAuth.instance.signOut();
+
+              // 2. Redireciona para a tela de login limpando o histórico
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()), // Destino corrigido para Login
+                  (route) => false, // Impede o usuário de voltar usando o botão físico do celular
+                );
+              }
+            },
+          )
         ],
       ),
       body: _carregando

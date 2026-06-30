@@ -84,7 +84,18 @@ class _CarrinhoScreenState extends State<CarrinhoScreen> {
                   );
                 }
 
+                // 💡 CORREÇÃO AQUI: Calculamos o total de forma precisa varrendo todos os itens do snapshot
                 double totalDoCarrinho = 0.0;
+                for (var doc in itens) {
+                  final data = doc.data() as Map<String, dynamic>? ?? {};
+                  final double preco = data['preco'] != null
+                      ? (data['preco'] as num).toDouble()
+                      : 0.0;
+                  final int quantidade = data['quantidade'] != null
+                      ? (data['quantidade'] as num).toInt()
+                      : 1;
+                  totalDoCarrinho += preco * quantidade;
+                }
 
                 return Column(
                   children: [
@@ -107,9 +118,7 @@ class _CarrinhoScreenState extends State<CarrinhoScreen> {
                           final String imagemUrl = data['imagemUrl'] ?? '';
 
                           return Card(
-                            key: ValueKey(
-                              id,
-                            ), // 💡 ESSENCIAL: Diz ao Flutter exatamente qual item é qual, evitando bugs de MouseTracker!
+                            key: ValueKey(id), // Mantém a estabilidade dos cards
                             margin: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 6,
@@ -119,7 +128,6 @@ class _CarrinhoScreenState extends State<CarrinhoScreen> {
                                 vertical: 8.0,
                               ),
                               child: ListTile(
-                                // Modificação do leading para estabilidade máxima de tamanho:
                                 leading: SizedBox(
                                   width: 55,
                                   height: 55,
@@ -138,14 +146,14 @@ class _CarrinhoScreenState extends State<CarrinhoScreen> {
                                             fit: BoxFit.cover,
                                             errorBuilder:
                                                 (context, error, stackTrace) {
-                                                  return Container(
-                                                    color: Colors.grey[200],
-                                                    child: const Icon(
-                                                      Icons.broken_image,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  );
-                                                },
+                                              return Container(
+                                                color: Colors.grey[200],
+                                                child: const Icon(
+                                                  Icons.broken_image,
+                                                  color: Colors.grey,
+                                                ),
+                                              );
+                                            },
                                           ),
                                   ),
                                 ),
@@ -252,7 +260,6 @@ class _CarrinhoScreenState extends State<CarrinhoScreen> {
                             const SizedBox(height: 16),
                             ElevatedButton(
                               onPressed: () {
-                                // Gera um ID temporário/prévio para o documento do pedido
                                 final String novoIdPedido = _firestore
                                     .collection('pedidos')
                                     .doc()
@@ -264,7 +271,6 @@ class _CarrinhoScreenState extends State<CarrinhoScreen> {
                                     builder: (context) => PagamentoScreen(
                                       idDoPedido: novoIdPedido,
                                       valorTotal: totalDoCarrinho,
-                                      // Padrão inicial de escolha
                                     ),
                                   ),
                                 );

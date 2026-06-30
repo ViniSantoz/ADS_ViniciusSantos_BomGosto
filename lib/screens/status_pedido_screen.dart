@@ -11,7 +11,7 @@ class StatusPedidoScreen extends StatelessWidget {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // E-mail administrativo definido no seu DVP
-  final String _emailAdmin = "191508@upf.br";
+  final String _emailAdmin = "admin@bomgosto.com";
 
   // Função para o Administrador atualizar o status do pedido no Firestore
   Future<void> _atualizarStatus(String novoStatus) async {
@@ -100,52 +100,38 @@ class StatusPedidoScreen extends StatelessWidget {
                 ),
 
                 const Spacer(),
-
                 // --- INTERFACE EXCLUSIVA DO ADMINISTRADOR (Painel de Ações) ---
                 if (isAdmin) ...[
                   const Divider(),
                   const Text(
                     'Painel do Administrador:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
                   ),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      if (statusAtual == 'Pendente')
+                      // AJUSTE AQUI: Se estiver "Pendente" OU "Aprovado", libera para ir para a cozinha ("Em Preparo")
+                      if (statusAtual == 'Pendente' || statusAtual == 'Aprovado')
                         ElevatedButton.icon(
                           onPressed: () => _atualizarStatus('Em Preparo'),
                           icon: const Icon(Icons.restaurant),
                           label: const Text('Aceitar e Preparar'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                          ),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
                         ),
                       if (statusAtual == 'Em Preparo')
                         ElevatedButton.icon(
-                          onPressed: () =>
-                              _atualizarStatus('Saiu para Entrega'),
+                          onPressed: () => _atualizarStatus('Saiu para Entrega'),
                           icon: const Icon(Icons.delivery_dining),
                           label: const Text('Despachar Pedido'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.purple,
-                            foregroundColor: Colors.white,
-                          ),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
                         ),
                       if (statusAtual == 'Saiu para Entrega')
                         ElevatedButton.icon(
                           onPressed: () => _atualizarStatus('Entregue'),
                           icon: const Icon(Icons.check),
                           label: const Text('Finalizar Entrega'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                         ),
                     ],
                   ),
@@ -197,15 +183,12 @@ class StatusPedidoScreen extends StatelessWidget {
       ),
     );
   }
-
-  // Lógica para marcar quais etapas anteriores já foram batidas
+  // Lógica atualizada para incluir o status "Aprovado" no início do fluxo
   bool _verificarEtapaConcluida(String etapa, String statusAtual) {
-    List<String> ordem = [
-      'Pendente',
-      'Em Preparo',
-      'Saiu para Entrega',
-      'Entregue',
-    ];
-    return ordem.indexOf(statusAtual) >= ordem.indexOf(etapa);
+  // Se o status do banco for "Aprovado", tratamos ele visualmente no mesmo nível de "Pendente"
+  String statusMapeado = statusAtual == 'Aprovado' ? 'Pendente' : statusAtual;
+  
+  List<String> ordem = ['Pendente', 'Em Preparo', 'Saiu para Entrega', 'Entregue'];
+  return ordem.indexOf(statusMapeado) >= ordem.indexOf(etapa);
   }
 }
