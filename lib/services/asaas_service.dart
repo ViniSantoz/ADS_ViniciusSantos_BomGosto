@@ -6,7 +6,7 @@ class AsaasService {
   final String _baseUrl = 'https://sandbox.asaas.com/api/v3';
   
   // Alerte-se: Esta chave ficará exposta dentro do código do aplicativo
-  final String _apiKey = r'$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmJmOWE3MjkyLThiYzItNDM4OS1hMGU4LWZjOWM2OWJhZjYzZTo6JGFhY2hfOGM0OTNlZjgtM2YyYS00YTRlLTlmNDQtZGNhYjhkZGNiNDg2'; 
+  final String _apiKey = r''; 
 
   Future<Map<String, dynamic>?> gerarEBuscarPix(String clienteId, double valor) async {
     final headers = {
