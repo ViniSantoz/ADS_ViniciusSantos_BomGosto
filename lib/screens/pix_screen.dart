@@ -1,102 +1,116 @@
-// Pasta: lib/screens/
-// Arquivo: pix_screen.dart
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'status_pedido_screen.dart';
+import 'package:bom_gosto/services/asaas_service.dart';
 
-class PixScreen extends StatelessWidget {
-  final String idDoPedido;
+class PixScreen extends StatefulWidget {
   final double valorTotal;
+  final String pedidoId;
 
-  const PixScreen({
-    super.key,
-    required this.idDoPedido,
-    required this.valorTotal,
-  });
+  const PixScreen({super.key, required this.valorTotal, required this.pedidoId});
+
+  @override
+  State<PixScreen> createState() => _PixScreenState();
+}
+
+class _PixScreenState extends State<PixScreen> {
+  late Future<PixQrCodeData>? _pixFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Dispara a requisição para buscar o QR Code real/dinâmico do Asaas
+    _pixFuture = AsaasService.gerarPixCobranca(
+    widget.valorTotal, 
+    widget.pedidoId,  
+  );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pagamento via PIX'),
-        centerTitle: true,
-        automaticallyImplyLeading: false, // Impede o cliente de voltar e duplicar ações
-      ),
+      appBar: AppBar(title: const Text('Pagamento via Pix')),
+      // O StreamBuilder monitora alterações do pedido em tempo real no Firestore
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('pedidos').doc(idDoPedido).snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('pedidos')
+            .doc(widget.pedidoId)
+            .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text('Erro ao verificar status do pagamento.'));
+          // Se o status mudar no banco (via Webhook ou alteração manual), muda de tela sozinho
+          if (snapshot.hasData && snapshot.data!.exists) {
+            final dados = snapshot.data!.data() as Map<String, dynamic>?;
+            if (dados != null && dados['status'] == 'Aprovado') {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context, 
+                  '/status_pedido', // Altere para a sua rota de Status ou Principal
+                  (route) => route.isFirst,
+                );
+              });
+            }
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final pedidoData = snapshot.data?.data() as Map<String, dynamic>?;
-          final status = pedidoData?['status'] ?? 'Pendente';
-
-          // SE O STATUS MUDAR PARA APROVADO (Via Webhook do Asaas ou Admin), PULA PARA A TELA DE STATUS
-          if (status == 'Aprovado' || status == 'Em Preparo') {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => StatusPedidoScreen(idDoPedido: idDoPedido),
-                ),
-              );
-            });
-          }
-
-          return Padding(
-            padding: const EdgeInsets.all(20.0),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text(
-                  "Aguardando Pagamento...",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber),
-                ),
-                const SizedBox(height: 10),
                 Text(
-                  "Valor a pagar: R\$ ${valorTotal.toStringAsFixed(2)}",
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                  'Valor: R\$ ${widget.valorTotal.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green),
                 ),
-                const SizedBox(height: 30),
-                
-                // Representação do QR Code (Aqui você pode futuramente puxar a URL Base64 real do Asaas)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Image.network(
-                    'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=200&auto=format&fit=crop',
-                    height: 200,
-                    width: 200,
-                    fit: BoxFit.cover,
-                    key: ValueKey(idDoPedido),
-                  ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Escaneie o QR Code abaixo ou utilize o Copia e Cola',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  "Copie a chave abaixo ou escaneie o código acima pelo app do seu banco. A sua tela atualizará sozinha assim que o Asaas confirmar a liquidação.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-                const SizedBox(height: 20),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    // Implementação básica de copiar código Pix Copia e Cola
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Código Copia e Cola copiado para a área de transferência!')),
+
+                // FutureBuilder que renderiza os dados do QR Code dinâmico do Asaas
+                FutureBuilder<PixQrCodeData>(
+                  future: _pixFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return Center(child: Text('Erro: ${snapshot.error ?? "Erro ao carregar dados"}'));
+                    }
+
+                    // Agora o snapshot retorna diretamente o nosso objeto tipado!
+                    final pixDados = snapshot.data!;
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          // Renderiza a imagem usando a lógica inteligente contra travamento de CORS
+                          pixDados.fallback
+                              ? Image.network(pixDados.encodedImage, width: 260, height: 260)
+                              : Image.memory(base64Decode(pixDados.encodedImage), width: 260, height: 260),
+                          
+                          const SizedBox(height: 16),
+                          const Text('Código Pix Copia e Cola:'),
+                          
+                          // Campo com o texto para o usuário copiar
+                          SelectableText(pixDados.payload), 
+                        ],
+                      ),
                     );
                   },
-                  icon: const Icon(Icons.copy),
-                  label: const Text("Copiar Código Pix"),
+                ),
+                const SizedBox(height: 40),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    SizedBox(width: 12),
+                    Text('Aguardando detecção do pagamento...', style: TextStyle(fontStyle: FontStyle.italic)),
+                  ],
                 ),
               ],
             ),
